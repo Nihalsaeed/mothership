@@ -3,7 +3,7 @@
   tier = "small";   # small | medium | large
   enabled = true;
   keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICH28zSgHDjkr9WdIOcfBDdvL4pxyQFG04ppL9TkRv1H user@dev"
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINwgNTAqVVU7ASe6EAAm0JXJrh7Z+7FBA6m1c2NFmdF4"
   ];
   # optional:
   publish = [ { port = 3000; } ];
