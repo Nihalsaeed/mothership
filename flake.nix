@@ -44,7 +44,6 @@
       opnsense.tharavadmathil = {
         failures = opnsense.check tharavadmathil;
         resources = opnsense.resources tharavadmathil;
-        manual = opnsense.manual tharavadmathil;
       };
 
       nixosConfigurations.mothership = nixpkgs.lib.nixosSystem {

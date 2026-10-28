@@ -10,12 +10,16 @@ cd "$repo_root"
 
 usage() {
   cat <<'EOF'
-usage: scripts/opnsense-apply [--fw tharavadmathil] [--apply]
+usage: scripts/opnsense-apply [--fw tharavadmathil] [--apply [--interfaces]]
+
+  --apply       write what the plan shows (interfaces excepted)
+  --interfaces  also write interface changes. these can cut the link you are
+                running this over — have the console ready.
 
 credentials: from secrets/<fw>.sops.yaml (decrypted with your ssh key, see
 .sops.yaml), or from env, which wins:
   OPNSENSE_URL     default https://192.168.12.1
-  OPNSENSE_KEY     api key    (System → Access → Users → root → API keys)
+  OPNSENSE_KEY     api key of the restricted `mothership` user
   OPNSENSE_SECRET  api secret
   OPNSENSE_CA      optional ca/cert file to verify the gui certificate;
                    without it the self-signed cert is accepted (-k)
@@ -27,10 +31,12 @@ EOF
 
 fw="tharavadmathil"
 apply=0
+interfaces=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fw) fw="${2:-}"; shift 2 ;;
     --apply) apply=1; shift ;;
+    --interfaces) interfaces=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown arg: $1" >&2; usage ;;
   esac
@@ -43,13 +49,14 @@ desired="$(nix eval --json ".#opnsense.${fw}.resources")"
 
 api() {
   local method="$1" path="$2" body="${3:-}"
-  local args=(-sS --fail-with-body "${tls[@]}" -u "$OPNSENSE_KEY:$OPNSENSE_SECRET" -X "$method" "$url/api/$path")
+  local args=(-sS --fail-with-body "${tls[@]}" -X "$method" "$url/api/$path" -K -)
   if [[ -n "$body" ]]; then
     args+=(-H 'Content-Type: application/json' -d "$body")
   elif [[ "$method" == POST ]]; then
     args+=(-H 'Content-Type: application/json' -d '{}')
   fi
-  curl "${args[@]}"
+  # credentials via stdin config: never on the command line (ps, error echoes)
+  printf 'user = "%s:%s"\n' "$OPNSENSE_KEY" "$OPNSENSE_SECRET" | curl "${args[@]}"
 }
 
 # getItem answers option fields as {key: {value, selected}}; flatten them to
@@ -57,6 +64,7 @@ api() {
 flatten='with_entries(.value |= (if type == "object" then ([to_entries[] | select(.value.selected == 1) | .key] | join(",")) else (. // "" | tostring) end))'
 
 changed_apis=()
+held=0
 count="$(jq length <<<"$desired")"
 
 for ((i = 0; i < count; i++)); do
@@ -95,6 +103,12 @@ for ((i = 0; i < count; i++)); do
     continue
   fi
 
+  if [[ "$apply" == 1 && "$kind" == iface && "$interfaces" == 0 ]]; then
+    echo "    held: interface change — rerun with --apply --interfaces"
+    held=1
+    continue
+  fi
+
   if [[ "$apply" == 1 ]]; then
     body="$(jq -c --arg w "$wrap" '{($w): .fields}' <<<"$res")"
     if [[ -z "$found" ]]; then
@@ -106,16 +120,20 @@ for ((i = 0; i < count; i++)); do
       echo "    refused: $out" >&2
       exit 1
     fi
-    changed_apis+=("$(jq -r .api.apply <<<"$res")")
+    a="$(jq -r .api.apply <<<"$res")"
+    [[ " ${changed_apis[*]-} " == *" $a "* ]] || changed_apis+=("$a")
   fi
 done
 
+# reload in resource order: interfaces before the gateways that sit on them
 if [[ "$apply" == 1 && ${#changed_apis[@]} -gt 0 ]]; then
-  for a in $(printf '%s\n' "${changed_apis[@]}" | sort -u); do
+  for a in "${changed_apis[@]}"; do
     echo "apply $a: $(api POST "$a" | jq -c .)"
   done
 elif [[ "$apply" == 0 ]]; then
   echo
-  echo "plan only. --apply to write. interfaces and gateway groups are checked in nix, set by hand:"
-  nix eval --json ".#opnsense.${fw}.manual" | jq -r '.gatewayGroups | to_entries[] | "  group \(.key): \(.value.tiers | to_entries | map("\(.key)=tier \(.value)") | join(", "))"'
+  echo "plan only. --apply to write (interfaces also need --interfaces)."
+fi
+if [[ "$held" == 1 ]]; then
+  echo "interface changes held back; nothing on them was written." >&2
 fi

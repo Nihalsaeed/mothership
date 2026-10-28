@@ -81,14 +81,55 @@ rec {
         lib.length (map (r: r.description) fw.rules)
         == lib.length (lib.unique (map (r: r.description) fw.rules))
       ) "rule descriptions must be unique — the applier matches on them")
+      (fail (
+        let
+          devs = lib.mapAttrsToList (_: i: i.device) fw.interfaces;
+        in
+        lib.length devs == lib.length (lib.unique devs)
+      ) "two interfaces on the same device")
+      (lib.mapAttrsToList (
+        n: i:
+        fail (lib.elem (i.ipv4 or "dhcp") [
+          "dhcp"
+        ]) "interface ${n}: ipv4 '${i.ipv4}' — wans are dhcp only for now"
+      ) wanIfs)
+      (lib.mapAttrsToList (
+        n: grp:
+        fail (lib.elem grp.trigger triggers) "group ${n}: trigger '${grp.trigger}' not one of ${toString triggers}"
+      ) fw.gatewayGroups)
     ];
+
+  # opnsense's gateway group triggers: down, loss, latency, loss or latency
+  triggers = [
+    "down"
+    "downloss"
+    "downlatency"
+    "downlosslatency"
+  ];
 
   # what scripts/opnsense-apply manages. each item: the api family, how to
   # find it on the box (match), and the fields to set. never deletes.
   resources =
     fw:
     let
+      # endpoint names read off the 26.7.7 gui pages, not guessed
       api = {
+        iface = {
+          search = "interfaces/assignment/search_item";
+          get = "interfaces/assignment/get_item";
+          add = "interfaces/assignment/add_item";
+          set = "interfaces/assignment/set_item";
+          apply = "interfaces/assignment/reconfigure";
+          wrap = "interface";
+        };
+        group = {
+          search = "routing/group_settings/search";
+          get = "routing/group_settings/get";
+          add = "routing/group_settings/add";
+          set = "routing/group_settings/set";
+          apply = "routing/group_settings/reconfigure";
+          wrap = "gateway_group";
+        };
         alias = {
           search = "firewall/alias/searchItem";
           get = "firewall/alias/getItem";
@@ -128,16 +169,39 @@ rec {
       };
       # lan has a v4 and a v6 range on the same interface; tell them apart
       v4range = match: fields: item "range" match fields // { family = "inet"; };
+      # tiers { gw = n; } → opnsense's item (tier 1) … item5, comma-joined
+      tierField = n: if n == 1 then "item" else "item${toString n}";
+      tierItems =
+        tiers:
+        lib.listToAttrs (
+          map (n: {
+            name = tierField n;
+            value = lib.concatStringsSep "," (
+              lib.sort lib.lessThan (lib.attrNames (lib.filterAttrs (_: t: t == n) tiers))
+            );
+          }) (lib.range 1 5)
+        );
     in
+    # dependency order: interfaces → gateways → groups → aliases → dhcp → rules
     lib.mapAttrsToList (
-      name: a:
-      item "alias" { inherit name; } {
-        inherit name;
-        enabled = "1";
-        inherit (a) type description;
-        content = lib.concatStringsSep "\n" a.content;
-      }
-    ) fw.aliases
+      id: i:
+      item "iface" { identifier = id; } (
+        {
+          descr = i.name or (lib.toUpper id);
+          "if" = i.device;
+          enable = "1";
+        }
+        // (
+          if i ? address then
+            {
+              type4 = "staticv4";
+              ipaddr = "${i.address}/${toString i.prefix}";
+            }
+          else
+            { type4 = i.ipv4 or "dhcp"; }
+        )
+      )
+    ) fw.interfaces
     ++ lib.mapAttrsToList (
       name: g:
       item "gateway" { inherit name; } {
@@ -151,6 +215,25 @@ rec {
         weight = toString (g.weight or 1);
       }
     ) fw.gateways
+    ++ lib.mapAttrsToList (
+      name: grp:
+      item "group" { inherit name; } (
+        {
+          inherit name;
+          inherit (grp) trigger;
+        }
+        // tierItems grp.tiers
+      )
+    ) fw.gatewayGroups
+    ++ lib.mapAttrsToList (
+      name: a:
+      item "alias" { inherit name; } {
+        inherit name;
+        enabled = "1";
+        inherit (a) type description;
+        content = lib.concatStringsSep "\n" a.content;
+      }
+    ) fw.aliases
     ++ [
       (v4range
         {
@@ -182,10 +265,4 @@ rec {
         gateway = r.gateway or "";
       }
     ) fw.rules;
-
-  # declared and checked, but not written by the applier yet: interface
-  # assignment and gateway groups have no api family verified on 26.7.7.
-  manual = fw: {
-    inherit (fw) interfaces gatewayGroups;
-  };
 }
