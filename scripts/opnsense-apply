@@ -12,7 +12,8 @@ usage() {
   cat <<'EOF'
 usage: scripts/opnsense-apply [--fw tharavadmathil] [--apply]
 
-env (never in git):
+credentials: from secrets/<fw>.sops.yaml (decrypted with your ssh key, see
+.sops.yaml), or from env, which wins:
   OPNSENSE_URL     default https://192.168.12.1
   OPNSENSE_KEY     api key    (System → Access → Users → root → API keys)
   OPNSENSE_SECRET  api secret
@@ -35,11 +36,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-: "${OPNSENSE_KEY:?set OPNSENSE_KEY (see --help)}"
-: "${OPNSENSE_SECRET:?set OPNSENSE_SECRET (see --help)}"
-url="${OPNSENSE_URL:-https://192.168.12.1}"
-tls=(-k)
-[[ -n "${OPNSENSE_CA:-}" ]] && tls=(--cacert "$OPNSENSE_CA")
+# shellcheck source=scripts/opnsense-env
+. "$repo_root/scripts/opnsense-env" "$fw"
 
 desired="$(nix eval --json ".#opnsense.${fw}.resources")"
 

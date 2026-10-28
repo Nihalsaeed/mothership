@@ -86,6 +86,7 @@
                 git
                 jq
                 nixfmt
+                sops # secrets/*.sops.* — decrypt with your own ssh key
               ]
               ++ lib.optionals isLinux [
                 headscale
@@ -154,6 +155,34 @@
               else
                 ''
                   printf '%s\n' ${pkgs.lib.escapeShellArgs failures} >&2
+                  exit 1
+                ''
+            );
+          # .sops.yaml recipients = the people in lib/adminKeys.nix, not machines.
+          # admin added/removed → regenerate .sops.yaml + sops updatekeys.
+          sops-recipients =
+            let
+              lib = pkgs.lib;
+              machines = [
+                "test-deploy"
+                "mothership-edge-trigger"
+              ];
+              bare = k: lib.concatStringsSep " " (lib.take 2 (lib.splitString " " k));
+              people = map bare (
+                lib.filter (k: !lib.elem (lib.last (lib.splitString " " k)) machines) (import ./lib/adminKeys.nix)
+              );
+              sopsJson = lib.concatStringsSep "\n" (
+                lib.filter (l: !lib.hasPrefix "#" l) (lib.splitString "\n" (builtins.readFile ./.sops.yaml))
+              );
+              recipients = (lib.head (builtins.fromJSON sopsJson).creation_rules).key_groups;
+              ages = lib.concatMap (g: g.age) recipients;
+            in
+            pkgs.runCommand "check-sops-recipients" { } (
+              if lib.sort lib.lessThan ages == lib.sort lib.lessThan people then
+                "touch $out"
+              else
+                ''
+                  echo ".sops.yaml recipients differ from the people in lib/adminKeys.nix" >&2
                   exit 1
                 ''
             );
