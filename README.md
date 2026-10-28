@@ -20,7 +20,10 @@ modules/microvms    user-vms/* → guests
 modules/deck        shared services (stubs)
 user-vms/           members (one .nix each) — git is the IdP
 lib/mkMemberVM.nix  one file → guest
+hosts/tharavadmathil/ house firewall — opnsense as data (not nixos)
+lib/opnsense.nix    checks it in `nix flake check`, turns it into api calls
 scripts/signup      writes a member file for a PR (not a control plane)
+scripts/opnsense-apply  plan (default) / --apply the firewall over its api
 why-this-exist      the only prose we keep
 AGENTS.md           for models
 ```
