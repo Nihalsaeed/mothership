@@ -71,15 +71,20 @@ for ((i = 0; i < count; i++)); do
   found=""
   live="{}"
   for u in $uuids; do
-    cand="$(api GET "$(jq -r .api.get <<<"$res")/$u" | jq -c ".${wrap} | ${flatten}")"
-    if jq -e --argjson m "$(jq -c .match <<<"$res")" '. as $l | $m | to_entries | all(.value == $l[.key])' <<<"$cand" >/dev/null; then
+    # rules opnsense generates itself answer getRule with [] — not ours, skip
+    cand="$(api GET "$(jq -r .api.get <<<"$res")/$u" | jq -c --arg w "$wrap" "if type == \"object\" and (.[\$w] | type) == \"object\" then .[\$w] | ${flatten} else empty end")"
+    [[ -n "$cand" ]] || continue
+    if jq -e --argjson m "$(jq -c .match <<<"$res")" --arg family "$(jq -r '.family // ""' <<<"$res")" \
+      '. as $l | ($m | to_entries | all(.value == $l[.key])) and ($family == "" or (($l.start_addr | contains(":")) == ($family == "inet6")))' \
+      <<<"$cand" >/dev/null; then
       found="$u"
       live="$cand"
       break
     fi
   done
 
-  diff="$(jq -c --argjson live "$live" '.fields | to_entries | map(select(.value != ($live[.key] // ""))) | map({key, want: .value, have: ($live[.key] // null)})' <<<"$res")"
+  # multi-value fields come back comma-joined, nix writes them one per line
+  diff="$(jq -c --argjson live "$live" 'def n: tostring | gsub("\n"; ","); .fields | to_entries | map(select((.value | n) != (($live[.key] // "") | n))) | map({key, want: .value, have: ($live[.key] // null)})' <<<"$res")"
 
   if [[ -z "$found" ]]; then
     echo "+ $kind $label (new)"

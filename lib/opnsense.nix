@@ -126,6 +126,8 @@ rec {
         inherit kind match fields;
         api = api.${kind};
       };
+      # lan has a v4 and a v6 range on the same interface; tell them apart
+      v4range = match: fields: item "range" match fields // { family = "inet"; };
     in
     lib.mapAttrsToList (
       name: a:
@@ -150,7 +152,7 @@ rec {
       }
     ) fw.gateways
     ++ [
-      (item "range"
+      (v4range
         {
           interface = "lan";
           domain_type = "range";
