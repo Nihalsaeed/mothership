@@ -35,7 +35,8 @@ done
 out="secrets/${fw}-config.sops.json"
 export SOPS_AGE_SSH_PRIVATE_KEY_FILE="${SOPS_AGE_SSH_PRIVATE_KEY_FILE:-$HOME/.ssh/id_ed25519}"
 
-new="$(curl -sS --fail-with-body "${tls[@]}" -u "$OPNSENSE_KEY:$OPNSENSE_SECRET" "$url/api/core/backup/download/this")"
+# credentials via stdin config, never on the command line
+new="$(printf 'user = "%s:%s"\n' "$OPNSENSE_KEY" "$OPNSENSE_SECRET" | curl -sS --fail-with-body "${tls[@]}" -K - "$url/api/core/backup/download/this")"
 [[ "$new" == "<?xml"* ]] || { echo "not a config.xml: ${new:0:120}" >&2; exit 1; }
 
 # re-encrypting changes every byte; only write when the config itself changed

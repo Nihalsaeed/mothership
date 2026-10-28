@@ -16,21 +16,42 @@
       prefix = 23; # 192.168.12.0 – 192.168.13.255, one subnet
       members = [ "Port3" ]; # uplink to the netgear; APs hang off the switch
     };
+    # wans take dhcp from whatever isp box is on the port; those boxes and
+    # their subnets move, so they are not pinned here.
     opt10 = {
       name = "WAN_A";
       device = "npup11"; # Port11
-      ipv4 = "dhcp"; # isp box 192.168.1.1
+      ipv4 = "dhcp";
     };
     opt11 = {
       name = "WAN_B";
       device = "npup12"; # Port12
-      ipv4 = "dhcp"; # isp box 192.168.5.1, cgnat upstream
+      ipv4 = "dhcp";
     };
     opt9 = {
       name = "WAN_C";
-      device = "npup10"; # Port10
-      ipv4 = "dhcp"; # jio box 192.168.29.1
+      device = "npup10"; # Port10 — jio
+      ipv4 = "dhcp";
     };
+  };
+
+  # the api user scripts/opnsense-apply + opnsense-backup run as. made once
+  # by an admin (it cannot grant itself rights); its key is in
+  # secrets/tharavadmathil.sops.yaml. backups read the whole config.xml, so
+  # this key is as sensitive as the config — admins only, like all secrets.
+  apiUser = {
+    name = "mothership";
+    privileges = [
+      "page-firewall-aliases"
+      "page-firewall-alias-edit"
+      "page-filter-api"
+      "page-system-gateways"
+      "page-system-gatewaygroups"
+      "page-services-dnsforwarder"
+      "page-interfaces-assignnetworkports"
+      "page-status-interfaces"
+      "page-diagnostics-configurationhistory"
+    ];
   };
 
   # one monitor per gateway — opnsense pins each monitor ip to its own wan,
