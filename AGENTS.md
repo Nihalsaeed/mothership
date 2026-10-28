@@ -14,6 +14,7 @@ git is the IdP. nix compiles. config is the map. read `why-this-exist`.
 | `user-vms/` | members |
 | `hosts/mothership` `modules/` | host fabric |
 | `hosts/edge` `sites/` | front door / brochure |
+| `hosts/tharavadmathil` `lib/opnsense.nix` | house firewall (opnsense, data) · `scripts/opnsense-apply` |
 
 if the prose and the machine disagree, trust the repo.
 

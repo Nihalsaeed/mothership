@@ -34,8 +34,19 @@
         "x86_64-darwin"
       ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
+
+      # house firewall — opnsense, not nixos. data in hosts/tharavadmathil,
+      # pushed by scripts/opnsense-apply.
+      opnsense = import ./lib/opnsense.nix { inherit (nixpkgs) lib; };
+      tharavadmathil = import ./hosts/tharavadmathil;
     in
     {
+      opnsense.tharavadmathil = {
+        failures = opnsense.check tharavadmathil;
+        resources = opnsense.resources tharavadmathil;
+        manual = opnsense.manual tharavadmathil;
+      };
+
       nixosConfigurations.mothership = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = { inherit self; };
@@ -132,6 +143,20 @@
             }" = "false"
             touch $out
           '';
+          # firewall data is sane: dhcp inside the lan, monitors unique, refs resolve
+          opnsense-tharavadmathil =
+            let
+              failures = self.opnsense.tharavadmathil.failures;
+            in
+            pkgs.runCommand "check-opnsense-tharavadmathil" { } (
+              if failures == [ ] then
+                "touch $out"
+              else
+                ''
+                  printf '%s\n' ${pkgs.lib.escapeShellArgs failures} >&2
+                  exit 1
+                ''
+            );
           edge-front-door = pkgs.runCommand "check-edge-front-door" { } ''
             test "${
               if self.nixosConfigurations.edge.config.mothership.mesh.frontDoor.enable then "true" else "false"

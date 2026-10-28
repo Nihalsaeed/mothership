@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# opnsense-apply — make the firewall match hosts/<fw>/default.nix over the
+# opnsense api. plan by default; --apply writes. never deletes: things on the
+# box that git does not name are listed, not touched. no state file — the box
+# is the state, items are matched by name/description.
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$repo_root"
+
+usage() {
+  cat <<'EOF'
+usage: scripts/opnsense-apply [--fw tharavadmathil] [--apply]
+
+env (never in git):
+  OPNSENSE_URL     default https://192.168.12.1
+  OPNSENSE_KEY     api key    (System → Access → Users → root → API keys)
+  OPNSENSE_SECRET  api secret
+  OPNSENSE_CA      optional ca/cert file to verify the gui certificate;
+                   without it the self-signed cert is accepted (-k)
+
+run from the house lan. plan first, read it, then --apply.
+EOF
+  exit 1
+}
+
+fw="tharavadmathil"
+apply=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fw) fw="${2:-}"; shift 2 ;;
+    --apply) apply=1; shift ;;
+    -h|--help) usage ;;
+    *) echo "unknown arg: $1" >&2; usage ;;
+  esac
+done
+
+: "${OPNSENSE_KEY:?set OPNSENSE_KEY (see --help)}"
+: "${OPNSENSE_SECRET:?set OPNSENSE_SECRET (see --help)}"
+url="${OPNSENSE_URL:-https://192.168.12.1}"
+tls=(-k)
+[[ -n "${OPNSENSE_CA:-}" ]] && tls=(--cacert "$OPNSENSE_CA")
+
+desired="$(nix eval --json ".#opnsense.${fw}.resources")"
+
+api() {
+  local method="$1" path="$2" body="${3:-}"
+  local args=(-sS --fail-with-body "${tls[@]}" -u "$OPNSENSE_KEY:$OPNSENSE_SECRET" -X "$method" "$url/api/$path")
+  if [[ -n "$body" ]]; then
+    args+=(-H 'Content-Type: application/json' -d "$body")
+  elif [[ "$method" == POST ]]; then
+    args+=(-H 'Content-Type: application/json' -d '{}')
+  fi
+  curl "${args[@]}"
+}
+
+# getItem answers option fields as {key: {value, selected}}; flatten them to
+# the selected keys so they compare against plain strings from nix.
+flatten='with_entries(.value |= (if type == "object" then ([to_entries[] | select(.value.selected == 1) | .key] | join(",")) else (. // "" | tostring) end))'
+
+changed_apis=()
+count="$(jq length <<<"$desired")"
+
+for ((i = 0; i < count; i++)); do
+  res="$(jq -c ".[$i]" <<<"$desired")"
+  kind="$(jq -r .kind <<<"$res")"
+  wrap="$(jq -r .api.wrap <<<"$res")"
+  label="$(jq -r '.match | to_entries | map("\(.key)=\(.value)") | join(" ")' <<<"$res")"
+
+  uuids="$(api POST "$(jq -r .api.search <<<"$res")" '{"current":1,"rowCount":-1}' | jq -r '.rows[].uuid')"
+  found=""
+  live="{}"
+  for u in $uuids; do
+    cand="$(api GET "$(jq -r .api.get <<<"$res")/$u" | jq -c ".${wrap} | ${flatten}")"
+    if jq -e --argjson m "$(jq -c .match <<<"$res")" '. as $l | $m | to_entries | all(.value == $l[.key])' <<<"$cand" >/dev/null; then
+      found="$u"
+      live="$cand"
+      break
+    fi
+  done
+
+  diff="$(jq -c --argjson live "$live" '.fields | to_entries | map(select(.value != ($live[.key] // ""))) | map({key, want: .value, have: ($live[.key] // null)})' <<<"$res")"
+
+  if [[ -z "$found" ]]; then
+    echo "+ $kind $label (new)"
+    jq -r '.[] | "    \(.key) = \(.want)"' <<<"$diff"
+  elif [[ "$(jq length <<<"$diff")" -gt 0 ]]; then
+    echo "~ $kind $label"
+    jq -r '.[] | "    \(.key): \(.have) → \(.want)"' <<<"$diff"
+  else
+    echo "  $kind $label"
+    continue
+  fi
+
+  if [[ "$apply" == 1 ]]; then
+    body="$(jq -c --arg w "$wrap" '{($w): .fields}' <<<"$res")"
+    if [[ -z "$found" ]]; then
+      out="$(api POST "$(jq -r .api.add <<<"$res")" "$body")"
+    else
+      out="$(api POST "$(jq -r .api.set <<<"$res")/$found" "$body")"
+    fi
+    if [[ "$(jq -r .result <<<"$out")" != saved ]]; then
+      echo "    refused: $out" >&2
+      exit 1
+    fi
+    changed_apis+=("$(jq -r .api.apply <<<"$res")")
+  fi
+done
+
+if [[ "$apply" == 1 && ${#changed_apis[@]} -gt 0 ]]; then
+  for a in $(printf '%s\n' "${changed_apis[@]}" | sort -u); do
+    echo "apply $a: $(api POST "$a" | jq -c .)"
+  done
+elif [[ "$apply" == 0 ]]; then
+  echo
+  echo "plan only. --apply to write. interfaces and gateway groups are checked in nix, set by hand:"
+  nix eval --json ".#opnsense.${fw}.manual" | jq -r '.gatewayGroups | to_entries[] | "  group \(.key): \(.value.tiers | to_entries | map("\(.key)=tier \(.value)") | join(", "))"'
+fi
