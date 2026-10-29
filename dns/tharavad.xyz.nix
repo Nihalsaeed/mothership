@@ -31,4 +31,28 @@ in
   wiki = toApex;
   landa = toApex; # landa console (static ui)
   landa-back = toApex; # landa control plane api (edge nginx → :8787)
+
+  # outbound email via resend (amazon ses underneath). these were added by
+  # hand in the hetzner console; without them octoDNS would delete them.
+  "resend._domainkey" = {
+    ttl = 3600;
+    type = "TXT";
+    value = "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDREVubkMIbYtMe/vBieSqUf07vl8pK43qUW19GSzw1e8gkDmyhE05WYS5wqi9TFumylbEFsQwlKjh/WfodqKSaLOVgKmEZU0JYcp4gxsKmi4y1cZs07QtiFA2UAu4Z8P9zMCDi6u/0EE140kN6+vnbuTho1doWZao5ccQGqAduvQIDAQAB";
+  };
+  # two record types on one name → a list
+  send = [
+    {
+      ttl = 3600;
+      type = "MX";
+      value = {
+        preference = 0;
+        exchange = "feedback-smtp.ap-northeast-1.amazonses.com.";
+      };
+    }
+    {
+      ttl = 3600;
+      type = "TXT";
+      value = "v=spf1 include:amazonses.com ~all";
+    }
+  ];
 }
