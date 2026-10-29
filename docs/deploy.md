@@ -1,6 +1,6 @@
 # How deploys work
 
-> **Source of truth:** `modules/git-sync.nix` · `scripts/host-git-sync` · `.github/workflows/check.yml`
+> **Source of truth:** `modules/git-sync.nix` · `scripts/host-git-sync` · `scripts/deploy-notify` · `.github/workflows/check.yml`
 
 ## From merge to running
 
@@ -28,6 +28,7 @@ git-sync keeps notes in `/var/lib/mothership/git-sync/`:
 | `last-applied` | the last commit that deployed cleanly. The next run compares against it |
 | `last-success` | the last commit that actually rebuilt the server |
 | `last-failure` | the last commit that failed, and when. Removed once a deploy succeeds |
+| `last-rebuild.log` | output of the last `nixos-rebuild` (feeds the failure comment) |
 
 A failed deploy leaves `last-applied` untouched, so the next run tries again.
 
@@ -36,6 +37,33 @@ Before it, one failure looked like "nothing to do" forever. A stray
 invisible character in one member file kept the server 63 commits behind
 for 2.5 months, and nobody noticed. CI now blocks that kind of file before
 it can merge.
+
+## You'll hear about it on GitHub
+
+You don't have to watch the server. After each deploy, git-sync reports
+back on GitHub (`scripts/deploy-notify`):
+
+| Where | Success | Failure |
+|---|---|---|
+| the merged commit | green `deploy/mothership` check | red `deploy/mothership` check |
+| your PR | ✅ comment. Member PRs get your `ssh` line and URLs | ❌ comment @-mentioning you, with the last 40 lines of the error |
+| issue "deploy broken on mothership" | closed with "recovered at …" | opened (label `deploy-broken`), or updated |
+
+**No spam:** git-sync retries a failing commit every 2 minutes, but each
+failure is announced once, and each PR hears about a breakage once. The
+state lives in `notified-failure` and `notified-failure-prs`, and both
+clear on the next success.
+
+Notifications never decide a deploy. If GitHub is down or the token is
+missing, the deploy goes ahead and the log says `notify: …`.
+
+**Setup (admins, once):** create a fine-grained token for
+`tinkerhub0/mothership` with *Commit statuses*, *Pull requests* and *Issues*
+set to read and write, and *Contents* read-only. Then:
+
+```bash
+scripts/install-github-token      # paste it, ctrl-d. it goes over ssh stdin, never into git
+```
 
 ## Watching a deploy
 
