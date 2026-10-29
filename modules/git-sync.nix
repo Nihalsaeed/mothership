@@ -159,6 +159,11 @@ in
         "nix-daemon.service"
       ];
       wants = [ "network-online.target" ];
+      # this unit runs the switch. if a switch restarts it, the run that
+      # started the switch dies, never records success, and the next run
+      # collides with the switch still in flight.
+      restartIfChanged = false;
+      stopIfChanged = false;
       path = with pkgs; [
         bash
         coreutils
