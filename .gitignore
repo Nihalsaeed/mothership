@@ -11,3 +11,7 @@ secrets/*
 sites/tharavad/node_modules/
 sites/tharavad/.astro/
 dns/zones/
+
+# local agent/editor config, never part of the repo
+.claude/
+.cursor/
