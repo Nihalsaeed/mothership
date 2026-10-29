@@ -69,8 +69,18 @@ fi
 cd "$SRC"
 git remote set-url origin "$REMOTE" 2>/dev/null || git remote add origin "$REMOTE"
 
-OLD="$(git rev-parse HEAD)"
-log "fetch origin/$BRANCH (at $OLD)"
+# base = last commit actually applied, not HEAD: checkout_origin moves HEAD
+# before the rebuild, so a failed switch would otherwise look done forever.
+APPLIED="${STATE_DIR}/last-applied"
+OLD=""
+for f in "$APPLIED" "${STATE_DIR}/last-success"; do
+  if [[ -s "$f" ]]; then
+    OLD="$(cat "$f")"
+    break
+  fi
+done
+OLD="${OLD:-$(git rev-parse HEAD)}"
+log "fetch origin/$BRANCH (last applied $OLD)"
 if [[ "$DRY" != "1" ]]; then
   git fetch --prune origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}"
 fi
@@ -294,6 +304,7 @@ if [[ "$mode" == "skip" ]]; then
   fi
   checkout_origin
   echo "$NEW" >"${STATE_DIR}/last-skip"
+  echo "$NEW" >"$APPLIED"
   # mothership skip (e.g. only sites/) can still need edge
   trigger_edge
   exit 0
@@ -317,7 +328,9 @@ checkout_origin
 
 log "nixos-rebuild switch --flake ${SRC}#${FLAKE_HOST} (mode=$mode)"
 if ! nixos-rebuild switch --flake "${SRC}#${FLAKE_HOST}"; then
-  die "nixos-rebuild switch failed (HEAD at $NEW)"
+  # last-applied stays put → next run diffs from it again and retries
+  echo "$NEW $(date '+%Y-%m-%dT%H:%M:%S%z')" >"${STATE_DIR}/last-failure"
+  die "nixos-rebuild switch failed (HEAD at $NEW, last applied $OLD; will retry)"
 fi
 
 if [[ "$ROLE" == "mothership" && "$mode" == "member" && ${#member_hits[@]} -gt 0 ]]; then
@@ -342,7 +355,9 @@ if [[ "$ROLE" == "mothership" ]]; then
 fi
 
 echo "$NEW" >"${STATE_DIR}/last-success"
+echo "$NEW" >"$APPLIED"
 echo "$mode" >"${STATE_DIR}/last-mode"
+rm -f "${STATE_DIR}/last-failure"
 log "done mode=$mode at $NEW"
 
 # after mothership applied (or even if only edge paths), kick edge for keys/bastion/landing
