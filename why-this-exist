@@ -1,61 +1,75 @@
-why this exist
-==============
+Why this exists
+===============
 
-this is a machine people get by opening a pr, not by waiting on someone to
-ssh in and click around. the metric is admin toil: how many times a human
-has to touch the box per member. target is one review.
+Getting a machine should take a pull request, not a favour.
 
-git is the identity provider. you open a pr that adds user-vms/you.nix,
-someone reviews it, merge hits main, nix builds the rest: microvm guest,
-ssh keys, quota, mesh join, public url. one object. git log answers who has
-access, who granted it, when, and why. if that sounds slow, good. the
-friction is the curriculum.
+Most community servers run on one person's memory: they set it up, they
+know the password, and when they're busy nobody gets in. mothership turns
+that into a process anyone can read. You write a file, someone reviews it,
+and the server builds itself. The goal is that a human touches the box at
+most once per member: the review.
 
-each member gets a real VM, not a shared unix account. your kernel, your
-mess. the host only sees a guest.
 
-no cloud
---------
+Git is the guest list
+---------------------
 
-a 2016 server off the used market does what a few thousand dollars a month
-of cloud would. that is not the main point. the point is what each one
-teaches. the cloud teaches you a vendor's api and its billing page. a box
-in the room teaches watts, disks, packets and boot order. when compute is
-fixed, the fastest way forward is better code, not a bigger invoice.
+Your access is user-vms/you.nix. Merge it and Nix builds your VM, keys,
+quota and public URL from it. Delete it and they're gone. `git log` answers
+who has access, who approved it, when and why. There's no separate user
+database to drift out of date.
 
-single master. no HA. no k8s. no terraform. one box, one flake, one
-firewall, one switch. if it is down, it is down, and you find out why.
+Web apps like Mattermost still have their own logins, since git can't sign
+you into a browser. That's fine for now.
 
-breakable because rebuildable
+
+Why not the cloud?
+------------------
+
+A used 2016 server does the work of a few thousand dollars a month of
+cloud. Cost isn't the main reason, though. The cloud teaches you one
+company's buttons and its billing page. A server in the room teaches you
+watts, disks, packets and boot order: things that stay true everywhere.
+
+And when you can't buy more compute, you make your code better.
+
+We keep it simple on purpose: one server, one config, one firewall, one
+switch. There's no Kubernetes and no high availability. If it's down, it's
+down, and finding out why is the lesson.
+
+
+Breakable because rebuildable
 -----------------------------
 
-nothing on the metal is precious. the raid is degraded and we left it that
-way. a member can wreck their VM; an operator can wreck the host. that's
-fine as long as git can put it back.
+Nothing on the server is precious. The disk array is running degraded and
+we've left it that way. A member can wreck their VM, and an operator can
+wreck the host.
 
-so the score is not uptime. the score is: wipe to working, from git, in how
-many minutes. measure it, publish it, make it smaller. every breakage is a
-drill. see docs/drills.md.
+That's fine, because git can put it all back. So we don't keep score with
+uptime. The score is how many minutes it takes to go from wiped to working,
+using only git. We measure that, publish it, and try to make it smaller.
+See docs/drills.md.
 
-docs are back
--------------
 
-we deleted the docs once so people would read the nix instead of pasting
-a wiki into a chatbot. that was wrong. it locked out the people who were
-trying to learn.
+Why the docs came back
+----------------------
 
-so docs/ exists, with one rule: docs explain why and how, the nix decides
-what. every doc points at the file that is the truth. if the doc and the
-repo disagree, the repo wins and the doc is a bug. fix it in the same pr.
+We once deleted the docs so people would read the Nix instead of pasting a
+wiki into a chatbot. That was a mistake. It mostly shut out the people who
+were trying to learn.
 
-how to learn
-------------
+So docs/ is back, with one rule: the docs explain, the Nix decides. Every
+page points at the file that's the real source of truth. If a doc and the
+code disagree, the code wins, and the doc is a bug you can fix in your PR.
 
-1. docs/README.md, in order.
-2. then hosts/mothership/ and modules/, top to bottom.
-3. nix develop · nix flake check · nix eval options until the graph is in
-   your head.
-4. break your own VM first. then break the metal on purpose, and time the
-   rebuild.
-5. when something fails, read the journal and the nixos option before you
-   ask anyone, model or human. ask about a line you can point at.
+
+Where to start
+--------------
+
+1. Get a machine (README.md). It takes five minutes.
+2. Read docs/ in order.
+3. Open hosts/mothership/ and follow the imports.
+4. Break your own VM. Then help us break the server on purpose, and time
+   how long it takes to come back.
+
+Ask questions anytime. Pointing at the line that confused you is the
+fastest way to get a good answer.

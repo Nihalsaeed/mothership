@@ -1,43 +1,46 @@
-# house firewall
+# The space's firewall
 
-truth: `hosts/tharavadmathil/default.nix` · `lib/opnsense.nix` · `scripts/opnsense-*`
+> **Source of truth:** `hosts/tharavadmathil/default.nix` · `lib/opnsense.nix` · `scripts/opnsense-*`
 
-`tharavadmathil` is a sophos XGS 126 running opnsense (npuforge image). it
-isn't nixos, so the file is **data**: `nix flake check` validates it and
-`scripts/opnsense-apply` pushes it over the opnsense api.
+`tharavadmathil` is the router and firewall for the whole space: a Sophos
+XGS 126 running [OPNsense](https://opnsense.org). OPNsense isn't NixOS, so
+its config lives in git as **data**. `nix flake check` validates it, and a
+script sends it to the firewall over OPNsense's API.
 
-## ports
+## Ports
 
-| port | role |
+| Port | Role |
 |---|---|
-| bridge0 | LAN `192.168.12.1/23`, dhcp `.12.10–.13.250` |
-| Port11 | WAN_A |
-| Port12 | WAN_B |
-| Port10 | WAN_C (jio) |
-| one LAN port | → JGS516 unmanaged switch → APs, desks |
+| LAN bridge | `192.168.12.1/23`; DHCP hands out `.12.10`–`.13.250` |
+| Port 11 | internet line A |
+| Port 12 | internet line B |
+| Port 10 | internet line C (Jio) |
+| one LAN port | → Netgear JGS516 switch → Wi-Fi access points, desks |
 
-wans sit in one gateway group, `FAILOVER` (tiers A → B → C). each gateway
-has its own monitor IP. LAN-to-LAN traffic is never policy-routed.
+The three internet lines form a failover group: if A goes down, traffic
+moves to B, then C.
 
-## workflow
+## Making a change
 
 ```bash
-source scripts/opnsense-env        # api creds from sops, never on argv
-scripts/opnsense-apply             # plan: what would change
-scripts/opnsense-apply --apply     # write
-scripts/opnsense-backup            # config.xml → secrets/*.sops.json, commit by hand
+source scripts/opnsense-env          # loads API credentials (encrypted with sops)
+scripts/opnsense-apply               # dry run: shows what would change
+scripts/opnsense-apply --apply       # actually change it
+scripts/opnsense-backup              # save the full config, encrypted, to secrets/
 ```
 
-`opnsense-apply` never deletes. anything on the box that git doesn't name
-gets listed, not touched. the box is the state, git is the intent.
+`opnsense-apply` **never deletes anything**. Settings on the firewall that
+git doesn't mention get listed, not removed.
 
-## not in git
+## Not in git
 
-secrets (api key, root password, certs) and the XGS NPU plugin settings.
+Secrets (API key, root password, certificates) and the XGS-specific
+hardware plugin settings.
 
-## gotchas we paid for
+## Lessons learned the hard way
 
-- pulling ports out of the bridge at runtime swapped WAN_A/WAN_B's
-  addresses. change one cable at a time, plan before apply.
-- console: `/dev/cuau3` on the 126, 115200 baud under opnsense.
-- an api key in a curl argument ends up in output. feed curl `-K -` on stdin.
+- Pulling ports out of the LAN bridge while it was running made two
+  internet lines swap addresses. Change one cable at a time, and dry-run first.
+- Serial console: `/dev/cuau3`, 115200 baud.
+- An API key passed as a `curl` argument showed up in output. Feed it on
+  stdin (`curl -K -`) instead.

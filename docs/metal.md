@@ -1,70 +1,70 @@
-# metal
+# The server
 
-truth: `hosts/mothership/default.nix` · `hardware-configuration.nix` · `disko.nix`
+> **Source of truth:** `hosts/mothership/default.nix` · `hardware-configuration.nix` · `disko.nix`
 
-measured 2026-10-29 on the live box.
+Everything here was measured on the live box on 2026-10-29.
+
+## Specs
 
 | | |
 |---|---|
-| chassis | dell poweredge r730xd |
-| cpu | 2× xeon e5-2699 v4 · 44 cores / 88 threads |
-| ram | 62 GB |
-| nic | 4× broadcom bcm57800 (eno1–4), uplink on **eno3** |
-| raid | perc h730 mini (megaraid sas-3 3108) |
-| disks | 6× 1 TB 2.5" SAS HDD (seagate ST91000640SS) |
-| array | one RAID5 virtual disk, 4.5 TB → `/dev/sda` |
-| root | ext4 on `sda2`, vfat `/boot` on `sda1` |
-| oob | iDRAC8 (not cabled yet) |
+| Model | Dell PowerEdge R730xd (2U rack server, 2016 era) |
+| CPU | 2× Intel Xeon E5-2699 v4: 44 cores, 88 threads |
+| RAM | 62 GB |
+| Network | 4× Broadcom BCM57800 ports (`eno1`–`eno4`). The cable is in **`eno3`** |
+| Disk controller | Dell PERC H730 Mini |
+| Disks | 6× 1 TB 2.5" SAS hard drives |
+| Storage | one RAID5 array, 4.5 TB, seen by Linux as `/dev/sda` |
+| Remote control | iDRAC8, not cabled yet |
 
-## disk: what's real
+## The disks, honestly
 
-`useDisko = false` in `hosts/mothership/default.nix`. the live root is the
-installer's ext4 on the PERC's single virtual disk. `disko.nix` (ZFS pool
-`tank`, per-member datasets) is the plan, not the reality. flipping
-`useDisko` on this install bricks boot. that already happened once.
+The server runs on the ext4 filesystem from the original NixOS install.
+`disko.nix` describes a nicer ZFS layout, but **it isn't active**
+(`useDisko = false`). Switching it on over this install breaks boot, and
+that has already happened once.
 
-the RAID5 is **degraded**: slot 6 shows `UBad`, five disks are carrying it,
-and there's no redundancy left. we left it that way on purpose, see
-[why-this-exist](../why-this-exist).
+The RAID5 array is **degraded**: the disk in slot 6 has failed, so the other
+five carry everything, with no safety margin. We've left it like this on
+purpose. Nothing on the server is precious. See [why-this-exist](../why-this-exist).
+
+Check it yourself:
 
 ```bash
 NIXPKGS_ALLOW_UNFREE=1 sudo -E nix shell --impure nixpkgs#storcli -c storcli /c0 show
 ```
 
-next drill: PERC → HBA mode, six raw disks, reinstall with disko, time it.
-
-## power
+## Power
 
 ```bash
 sudo nix shell nixpkgs#ipmitool -c ipmitool dcmi power reading
 ```
 
-| state | watts |
+| State | Watts |
 |---|---|
-| idle | 151 |
-| full nix build (avg / peak) | 187 / 334 |
-| SPEC reference, same CPUs, idle (R730) | ~45 |
+| Idle | 151 |
+| Rebuilding the whole config (average / peak) | 187 / 334 |
+| Published benchmark idle, same CPUs, R730 | ~45 ([SPEC](https://spec.cs.miami.edu/power_ssj2008/results/res2016q2/power_ssj2008-20160328-00719.html)) |
 
-~110 kWh/month idle. the 3× gap from SPEC is mostly six spinning disks and
-the BIOS power profile. try "Performance Per Watt (OS)".
+That's about 110 kWh a month just idling. We probably draw 3× the
+benchmark because of six spinning disks and the default BIOS power
+settings. Air goes in at 29 °C and comes out at 35 °C.
 
-air in 29 °C, out 35 °C.
-
-## boot
+## Boot
 
 ```
 firmware 11m48s + loader 8s + kernel 1s + initrd 22s + userspace 1m16s = 13m36s
 ```
 
-POST is most of every reboot. likely suspects: the PERC stopping on the
-degraded-array warning, PXE ROMs on four NICs, Lifecycle Controller
-inventory collection on every boot, memory test. kill them one at a time
-and re-measure.
+Linux itself is quick. **The Dell's power-on checks (POST) take almost 12
+minutes.** Likely causes: the RAID card pausing on the degraded-array
+warning, network-boot checks on four ports, and Dell's hardware inventory
+scan. Turning those off is [drill #1](drills.md#drills-to-run).
 
-## memory budget
+## Memory budget
 
-`lib/tiers.nix` RAM summed over enabled members: **94 GiB** (2026-10-29)
-on a 62 GB box. `mothership.microvms.maxTotalMemMiB` defaults to 100 GiB,
-so the assertion passes. idle guests don't touch most of their RAM, which is
-why it runs at all. set the cap to what the box really has, or accept the
-risk knowingly.
+All enabled members together are assigned **94 GB of RAM** (2026-10-29) on
+a 62 GB server. It works because idle VMs use far less than they're given.
+If many get busy at once, the server runs out of memory and starts killing
+VMs. The safety check (`maxTotalMemMiB`) is set to 100 GB, so it doesn't
+catch this. Lowering it to the real 62 GB is one line.

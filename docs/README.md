@@ -1,16 +1,24 @@
-# docs
+# Documentation
 
-docs explain, nix decides. every page names the file that is the truth.
-doc and repo disagree → repo wins, doc is a bug, fix it in the same PR.
+**New here?** Start with [Getting a machine](join.md). Then read the rest in
+order. Each page takes about five minutes.
 
-read in order:
+| | Page | You'll learn |
+|---|---|---|
+| 1 | [Getting a machine](join.md) | sign up, SSH in, put a website online |
+| 2 | [Glossary](glossary.md) | VM, Nix, mesh, WireGuard and the rest, in plain words |
+| 3 | [How traffic reaches your VM](network.md) | every hop from the internet to your machine |
+| 4 | [The server](metal.md) | the hardware: CPUs, disks, power, boot |
+| 5 | [How deploys work](deploy.md) | what happens between "merge" and "running" |
+| 6 | [Operating it](ops.md) | for admins: getting in, logs, undoing a bad change |
+| 7 | [The space's firewall](house-firewall.md) | the XGS firewall, configured from git |
+| 8 | [Drills](drills.md) | breaking it on purpose and timing the comeback |
 
-1. [join.md](join.md) — get a VM, ssh in, publish a port
-2. [network.md](network.md) — every hop from the internet to your VM
-3. [metal.md](metal.md) — the r730xd: cpu, raid, power, boot
-4. [deploy.md](deploy.md) — merge → running, and what happens when it breaks
-5. [ops.md](ops.md) — operator access, logs, rollback
-6. [house-firewall.md](house-firewall.md) — the XGS/opnsense, configured as data
-7. [drills.md](drills.md) — break it on purpose, measure the rebuild
+## The one rule
 
-numbers in here carry a date. stale number → re-measure, don't delete.
+The docs explain, the code decides. Every page starts with a **Source of
+truth** line naming the files it describes. If a doc and the code disagree,
+the code is right and the doc has a bug. Please fix it in your PR.
+
+Numbers carry the date they were measured. If one looks stale, measure it
+again rather than deleting it.

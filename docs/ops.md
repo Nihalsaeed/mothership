@@ -1,47 +1,51 @@
-# ops
+# Operating it
 
-truth: `lib/adminKeys.nix` · `modules/admins.nix` · `modules/base.nix`
+> **Source of truth:** `lib/adminKeys.nix` · `modules/admins.nix` · `modules/base.nix`
 
-## who
+For admins. Members don't need any of this.
 
-operators = keys in `lib/adminKeys.nix`. they can log in as `root`,
-`mothership` or `nixos` (wheel, passwordless sudo). there are no passwords:
-`PasswordAuthentication = false`. lost your key → someone else's PR adds
-your new one.
+## Who's an admin
 
-## get in
+Anyone whose public key is in `lib/adminKeys.nix`. Admins can log in as
+`root`, `mothership` or `nixos`. Sudo needs no password.
 
-```bash
-ssh mothership@tharavad.xyz                    # metal, via the edge bastion
-ssh -J root@178.105.120.5 root@10.99.0.2       # same, by hand
-ssh mothership@<lan ip>                        # once it sits behind the XGS
-```
+**There are no passwords at all**: password login is switched off. Lost
+your key? Make a new one and ask another admin to merge a PR adding it.
 
-first connect: compare the host key against one you already trust before
-you type yes.
-
-## look
+## Getting in
 
 ```bash
-systemctl --failed
-systemctl list-units 'microvm@*'
-journalctl -u microvm@<name> -n 100
-journalctl -fu mothership-git-sync
-ip -br a
-sudo nix shell nixpkgs#ipmitool -c ipmitool dcmi power reading
+ssh mothership@tharavad.xyz                 # the server, through the edge
+ssh -J root@178.105.120.5 root@10.99.0.2    # the same, spelled out
 ```
 
-## undo
+The first time you connect, SSH shows the server's fingerprint. Check it
+with another admin before typing `yes`.
+
+## Looking around
 
 ```bash
-sudo nixos-rebuild switch --rollback      # previous generation, now
-# or pick an older generation at the systemd-boot menu (iDRAC console)
+systemctl --failed                          # anything broken?
+systemctl list-units 'microvm@*'            # member VMs
+journalctl -u microvm@<name> -n 100         # one VM's log
+journalctl -fu mothership-git-sync          # deploys, live
+ip -br a                                    # network interfaces
+sudo nix shell nixpkgs#ipmitool -c ipmitool dcmi power reading   # watts
 ```
 
-then fix it in git, or the next git-sync puts the bad commit right back.
+## Undoing a bad change
 
-## rules
+```bash
+sudo nixos-rebuild switch --rollback        # back to the previous version, right now
+```
 
-- no reboots of shared gear without asking in the channel first
-- secrets only as `secrets/*.sops.*`, recipients = people in `lib/adminKeys.nix`
-- never paste API keys on a command line (shell history, process list, logs)
+Or pick an older version from the boot menu, through the iDRAC console.
+
+Then **fix it in git**. Otherwise git-sync re-applies the bad commit two
+minutes later.
+
+## House rules
+
+- Ask in the channel before rebooting anything shared.
+- Secrets go in git only encrypted (`secrets/*.sops.*`). Never in plain text.
+- Never put API keys on a command line: they leak into shell history and logs.

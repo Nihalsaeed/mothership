@@ -1,53 +1,51 @@
-# deploy
+# How deploys work
 
-truth: `modules/git-sync.nix` · `scripts/host-git-sync` · `.github/workflows/check.yml`
+> **Source of truth:** `modules/git-sync.nix` · `scripts/host-git-sync` · `.github/workflows/check.yml`
 
-## merge → running
+## From merge to running
 
 ```
-PR ── CI: BOM/CRLF lint · eval both hosts · nix flake check
- │
-merge to main
- │
-mothership-git-sync.timer (every 2 min)
- │  fetch origin/main, diff against last-applied
- │  user-vms/* only        → mode=member  (start new guests, leave others)
- │  hosts/modules/lib/...  → mode=fabric  (full switch)
- │  docs, sites, README    → mode=skip    (checkout only)
- │
-nixos-rebuild switch --flake /var/lib/mothership/src#mothership
- │
-edge-relevant paths changed → ssh-start edge-git-sync on the edge
+1. You open a PR
+       └─ CI: checks for invisible characters, evaluates the config, runs nix flake check
+2. Someone merges it into main
+3. Within 2 minutes, git-sync on mothership notices
+       ├─ only user-vms/ changed  → member mode: build, start the new VMs, leave others alone
+       ├─ hosts/ modules/ lib/    → fabric mode: rebuild the whole server
+       └─ docs, README, site      → skip: nothing to rebuild
+4. nixos-rebuild switch: the server becomes what main describes
+5. If anything the edge cares about changed, git-sync nudges the edge to update too
 ```
 
-nobody runs `nixos-rebuild` by hand on the metal. if you have to, the
-config in git is missing something.
+Nobody runs `nixos-rebuild` by hand on the server. If you feel you need to,
+something is missing from git. Add it there instead.
 
-## state
+## When a deploy fails
 
-`/var/lib/mothership/git-sync/`:
+git-sync keeps notes in `/var/lib/mothership/git-sync/`:
 
-| file | meaning |
+| File | Means |
 |---|---|
-| `last-applied` | last commit that switched or was skipped cleanly. diffs start here |
-| `last-success` | last commit that switched |
-| `last-failure` | commit + time of the last failed switch; cleared on success |
-| `vms-before.txt` `vms-after.txt` | running guests around the switch (peer-restart check) |
+| `last-applied` | the last commit that deployed cleanly. The next run compares against it |
+| `last-success` | the last commit that actually rebuilt the server |
+| `last-failure` | the last commit that failed, and when. Removed once a deploy succeeds |
 
-a failed switch leaves `last-applied` alone, so the next timer run retries.
-until #90 it diffed against HEAD, which had already moved, so one failure
-read as "no changes" forever. that's how the box sat 63 commits behind
-for 2.5 months without anyone noticing.
+A failed deploy leaves `last-applied` untouched, so the next run tries again.
 
-## watch it
+That retry is new ([#90](https://github.com/tinkerhub0/mothership/pull/90)).
+Before it, one failure looked like "nothing to do" forever. A stray
+invisible character in one member file kept the server 63 commits behind
+for 2.5 months, and nobody noticed. CI now blocks that kind of file before
+it can merge.
+
+## Watching a deploy
 
 ```bash
 ssh mothership@tharavad.xyz
-journalctl -fu mothership-git-sync
+journalctl -fu mothership-git-sync        # live log
 sudo cat /var/lib/mothership/git-sync/last-failure
 ```
 
-## build cost (2026-10-29)
+## How long it takes (2026-10-29)
 
-clean clone → full toplevel: 5 min 23 s, 873 derivations, 6.1 GiB closure.
-a member-only change rebuilds far less.
+Building the entire server config from a fresh clone takes 5 min 23 s: 873
+build steps and a 6.1 GB system. Adding one member rebuilds much less.

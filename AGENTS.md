@@ -9,7 +9,7 @@ read `why-this-exist`, then `docs/`. git is the IdP. nix compiles. docs explain,
 - secrets in git only sops-encrypted as `secrets/*.sops.*` (recipients = the people in `lib/adminKeys.nix`, not machine keys; rules in `.sops.yaml`). never plaintext.
 - plain UTF-8, LF, no BOM in `.nix` files (CI rejects them)
 - small PRs · no drive-by rewrites
-- behaviour change → update the matching `docs/*.md` in the same PR. every doc names the file that is the truth; don't add a doc that has no such file
+- behaviour change → update the matching `docs/*.md` in the same PR. docs are for newcomers: plain words, sentence case, explain a term or link `docs/glossary.md`. every page opens with a "Source of truth" line
 - numbers in docs carry a date; re-measure, don't invent
 - after merge, mothership git-sync provisions the guest
 
