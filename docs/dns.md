@@ -1,7 +1,6 @@
 # DNS
 
 > **Source of truth:** `lib/site.nix` · `dns/tharavad.xyz.nix` · `.github/workflows/dns.yml`
-> (lands with [#93](https://github.com/tinkerhub0/mothership/pull/93). Until then the zone lives in [tinkerhub0/dns](https://github.com/tinkerhub0/dns))
 
 Every public name under `tharavad.xyz` is a line of Nix in this repo.
 [octoDNS](https://github.com/octodns/octodns) pushes it to Hetzner DNS.
@@ -15,6 +14,12 @@ edit dns/tharavad.xyz.nix ── PR ──► CI renders the zone and shows the 
 ```
 
 The server itself never rebuilds for a DNS change.
+
+**Read the plan before you merge.** octoDNS makes Hetzner match git
+exactly, so a record someone added by hand in the Hetzner console shows up
+as a **Delete**. That's how we found the email records (`resend._domainkey`,
+`send` MX + SPF): they'd been added by hand, and the first plan wanted to
+remove them. So don't edit DNS in the console. Add it here.
 
 ## Why one wildcard is enough for members
 
@@ -33,6 +38,7 @@ touches DNS.
 | `tharavad.xyz` | front door IP | landing page, operator SSH |
 | `*.tharavad.xyz` | front door IP | every member's SSH and HTTPS |
 | `status`, `headscale`, `chat`, `auth`, `monitor`, `wiki`, `landa`, `landa-back` | → `tharavad.xyz` | shared services |
+| `resend._domainkey`, `send` | Resend / Amazon SES | outgoing email (DKIM, MX, SPF) |
 
 ## Changing the front door IP
 
