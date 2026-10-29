@@ -339,6 +339,14 @@ notify() {
 }
 
 REBUILD_LOG="${STATE_DIR}/last-rebuild.log"
+# a switch from an earlier run may still be finishing (it outlives us if we
+# were restarted); starting a second one fails with "already loaded".
+for _ in $(seq 1 90); do
+  [[ -z "$(systemctl list-units --all --no-legend nixos-rebuild-switch-to-configuration.service 2>/dev/null)" ]] && break
+  log "previous switch still running; waiting"
+  sleep 10
+done
+
 log "nixos-rebuild switch --flake ${SRC}#${FLAKE_HOST} (mode=$mode)"
 # tee: journal keeps the full stream, the file feeds the failure excerpt (pipefail keeps the exit code)
 if ! nixos-rebuild switch --flake "${SRC}#${FLAKE_HOST}" 2>&1 | tee "$REBUILD_LOG"; then
