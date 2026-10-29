@@ -1,50 +1,61 @@
 why this exist
 ==============
 
-this is a machine people can get by opening a pr, not by waiting on
-someone to ssh in and click around. the metric is admin toil: how many
-times a human has to touch the box per member. target is one review.
+this is a machine people get by opening a pr, not by waiting on someone to
+ssh in and click around. the metric is admin toil: how many times a human
+has to touch the box per member. target is one review.
 
-git is the identity provider. not authentik "for now" — for everything git
-can actually cover. you open a pr that adds user-vms/you.nix (or run
-scripts/signup to write that file), someone reviews it, merge hits main,
-nix builds the rest: microvm guest, ssh keys, zfs dataset + quota, mesh
-join path. one object. git log answers who has access, who granted it,
-when, and why. if that sounds slow, good. the friction is the curriculum.
+git is the identity provider. you open a pr that adds user-vms/you.nix,
+someone reviews it, merge hits main, nix builds the rest: microvm guest,
+ssh keys, quota, mesh join, public url. one object. git log answers who has
+access, who granted it, when, and why. if that sounds slow, good. the
+friction is the curriculum.
 
-each member gets a real VM (microvm.nix), not a shared unix account. unique
-address is a headscale/tailscale IP inside the guest — not a port on the
-host. you do whatever you want in your kernel; the host only sees a guest.
+each member gets a real VM, not a shared unix account. your kernel, your
+mess. the host only sees a guest.
 
-web apps (mattermost etc) still need their own logins. git can't auth a
-browser. that's fine. dex later if it gets annoying. not our problem today.
+no cloud
+--------
 
-we removed the docs folder
---------------------------
+a 2016 server off the used market does what a few thousand dollars a month
+of cloud would. that is not the main point. the point is what each one
+teaches. the cloud teaches you a vendor's api and its billing page. a box
+in the room teaches watts, disks, packets and boot order. when compute is
+fixed, the fastest way forward is better code, not a bigger invoice.
 
-sorry.
+single master. no HA. no k8s. no terraform. one box, one flake, one
+firewall, one switch. if it is down, it is down, and you find out why.
 
-a lot of people open a repo, paste the whole docs tree into an ai, and ship
-something they cannot explain when it breaks at 2am. the model will happily
-hallucinate a runbook. you still will not know how the server works.
+breakable because rebuildable
+-----------------------------
 
-so there is no polished SETUP.md to launder into a chat window. the
-configuration is the documentation. read the nix. read the commits. if you
-cannot say what tank/users is for without searching, you are not ready to
-run this box.
+nothing on the metal is precious. the raid is degraded and we left it that
+way. a member can wreck their VM; an operator can wreck the host. that's
+fine as long as git can put it back.
 
-how to learn (actually)
------------------------
+so the score is not uptime. the score is: wipe to working, from git, in how
+many minutes. measure it, publish it, make it smaller. every breakage is a
+drill. see docs/drills.md.
 
-1. read hosts/mothership/ then modules/ top to bottom. no skipping.
-2. nix develop · nix flake check · nix eval the options until the graph
-   is in your head (hostname, mesh ip, who imports what).
-3. break a throwaway vm or a spare disk before you touch production metal.
-4. when something fails, read the unit journal and the nixos option — not
-   a summary of a summary of a blog post.
-5. only after that: ask a model specific questions about one file you
-   already opened. if you cannot point at the line, you are not asking a
-   real question.
+docs are back
+-------------
 
-if operating this needs a wiki, we already lost. start at flake.nix and
-walk the imports. that is the whole invitation.
+we deleted the docs once so people would read the nix instead of pasting
+a wiki into a chatbot. that was wrong. it locked out the people who were
+trying to learn.
+
+so docs/ exists, with one rule: docs explain why and how, the nix decides
+what. every doc points at the file that is the truth. if the doc and the
+repo disagree, the repo wins and the doc is a bug. fix it in the same pr.
+
+how to learn
+------------
+
+1. docs/README.md, in order.
+2. then hosts/mothership/ and modules/, top to bottom.
+3. nix develop · nix flake check · nix eval options until the graph is in
+   your head.
+4. break your own VM first. then break the metal on purpose, and time the
+   rebuild.
+5. when something fails, read the journal and the nixos option before you
+   ask anyone, model or human. ask about a line you can point at.
