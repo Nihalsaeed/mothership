@@ -91,7 +91,8 @@ member file. This starts your user services at boot and keeps them running
 after you log out. Store unit files in `~/.config/systemd/user/`, which
 persists across VM restarts, then enable them with `systemctl --user enable
 --now <service>`. Keep app data in your home directory too; the guest's
-root filesystem is temporary.
+root filesystem is temporary. Omnibox enables this setting for T3 Code
+and its dedicated Tailscale service.
 
 ## Leaving
 
