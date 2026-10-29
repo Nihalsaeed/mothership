@@ -94,9 +94,17 @@ nix flake check      # what CI runs on every PR
 
 Day-to-day running: [docs/ops.md](docs/ops.md). Deploys: [docs/deploy.md](docs/deploy.md).
 
+## Use it as a reference
+
+We want this to be the repo people link when they ask how to:
+
+- **run NixOS on Hetzner**: install, network quirks, DNS as code, wildcard certs. See [docs/hetzner.md](docs/hetzner.md)
+- **tune a used server**: real power, boot and build numbers, and what we changed. See [docs/drills.md](docs/drills.md)
+- **give a community machines from git**: this whole repo
+
 ## Run one at your own space
 
-mothership is built for TinkerHub, but nothing in it is secret sauce. To fork it, swap the domain (`tharavad.xyz`), the admin keys (`lib/adminKeys.nix`) and the host IPs. A guide is on the [roadmap](docs/drills.md#drills-to-run). Open an issue if you try it.
+mothership is built for TinkerHub, but nothing in it is secret sauce. To fork it, swap the domain and public IP (`lib/site.nix`), the admin keys (`lib/adminKeys.nix`) and the host IPs. A guide is on the [roadmap](docs/drills.md#drills-to-run). Open an issue if you try it.
 
 ## Contributing
 
