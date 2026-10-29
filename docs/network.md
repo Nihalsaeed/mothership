@@ -69,6 +69,6 @@ These are plans, not current state:
 - **Drop the edge:** with an Airtel static IP, everything the edge does moves onto mothership. We need to confirm Airtel isn't putting us behind its own NAT (CGNAT) first.
 - **IPv6:** Airtel already gives us IPv6. Turn it on for the LAN, then go IPv6-mostly like the [CCC congress](https://events.ccc.de/congress/2025/infos/network.html).
 - **Wi-Fi logins from git:** with a VLAN-capable switch, WPA-Enterprise accounts generated from `user-vms/`. One PR, a VM *and* Wi-Fi.
-- **VM isolation:** stop VMs from spoofing each other's addresses, cap connections per VM, block outbound email spam. All of it generated from `user-vms/`.
+- **VM isolation** ([#92](https://github.com/tinkerhub0/mothership/pull/92)): each VM may only send from its own MAC and IP, outbound email (port 25) is blocked, and connections are capped per VM. All of it is generated from `user-vms/`, the same idea as Hetzner Cloud's per-VM network rules.
 
 The firewall side: [house-firewall.md](house-firewall.md).
